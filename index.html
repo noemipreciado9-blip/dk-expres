@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DK Exprés - Reserva</title>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script>
+        (function(){
+            // ¡IMPORTANTE! Aquí pega tu Public Key de EmailJS
+            emailjs.init("TU_PUBLIC_KEY_AQUI"); 
+        })();
+    </script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f7f6; padding: 20px; }
+        .container { max-width: 450px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h2 { color: #003366; text-align: center; margin-bottom: 5px; }
+        label { font-weight: bold; display: block; margin-top: 15px; color: #003366; }
+        select, input { width: 100%; padding: 12px; margin-top: 5px; border-radius: 10px; border: 1px solid #ccc; box-sizing: border-box; }
+        .precio-box { background: #003366; color: white; text-align: center; padding: 15px; border-radius: 12px; margin-top: 20px; font-size: 1.4rem; font-weight: bold; }
+        .btn { background: #ff6600; color: white; padding: 18px; width: 100%; border: none; border-radius: 12px; margin-top: 20px; cursor: pointer; font-size: 1.1rem; font-weight: bold; }
+        
+        /* Estilo del Ticket */
+        #ticket { display: none; background: #fffdf0; border: 2px dashed #003366; padding: 20px; margin-top: 30px; border-radius: 10px; }
+        #ticket h3 { text-align: center; margin-top: 0; color: #003366; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        .dato-ticket { margin: 8px 0; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>DK EXPRÉS</h2>
+    <p style="text-align:center; color:#666; font-size:0.8rem;">Transporte de Confianza</p>
+    
+    <label>Nombre del Pasajero</label>
+    <input type="text" id="nombre" placeholder="Ej: Diana Preciado">
+
+    <label>Destino (Desde Quito)</label>
+    <select id="ruta" onchange="actualizarPrecio()">
+        <option value="">-- Selecciona Destino --</option>
+        <option value="AMBATO">Ambato</option>
+        <option value="CAYAMBE">Cayambe</option>
+        <option value="CUENCA">Cuenca</option>
+        <option value="ESMERALDAS">Esmeraldas</option>
+        <option value="GUAYAQUIL">Guayaquil</option>
+        <option value="IBARRA">Ibarra</option>
+        <option value="LATACUNGA">Latacunga</option>
+        <option value="LOJA">Loja</option>
+        <option value="MANTA">Manta</option>
+        <option value="MINDO">Mindo</option>
+        <option value="OTAVALO">Otavalo</option>
+        <option value="PEDRO VICENTE">Pedro Vicente</option>
+        <option value="PUERTO QUITO">Puerto Quito</option>
+        <option value="QUININDE">Quinindé</option>
+        <option value="SANTO DOMINGO">Santo Domingo</option>
+    </select>
+
+    <label>Tipo de Viaje</label>
+    <select id="tipo" onchange="actualizarPrecio()">
+        <option value="aco">Acompañado (Compartido)</option>
+        <option value="pri">Privado</option>
+    </select>
+
+    <label>Fecha y Hora</label>
+    <div style="display:flex; gap:10px;">
+        <input type="date" id="fecha">
+        <input type="time" id="hora">
+    </div>
+
+    <div class="precio-box" id="precioDisplay">Total: $0.00</div>
+
+    <label>Subir Comprobante de Pago</label>
+    <input type="file" id="pago" accept="image/*">
+
+    <button class="btn" onclick="procesarSolicitud()">SOLICITAR VIAJE</button>
+
+    <div id="ticket">
+        <h3>TICKET DE ABORDO</h3>
+        <div class="dato-ticket"><strong>Pasajero:</strong> <span id="t-nom"></span></div>
+        <div class="dato-ticket"><strong>Ruta:</strong> <span id="t-rut"></span></div>
+        <div class="dato-ticket"><strong>Salida:</strong> <span id="t-fec"></span></div>
+        <hr>
+        <div class="dato-ticket"><strong>Conductor:</strong> <span id="t-con"></span></div>
+        <div class="dato-ticket"><strong>Vehículo:</strong> <span id="t-veh"></span></div>
+        <div class="dato-ticket"><strong>Placa:</strong> <span id="t-pla"></span></div>
+        <button onclick="window.print()" style="margin-top:10px; width:100%;">Imprimir Ticket</button>
+    </div>
+</div>
+
+<script>
+    // 1. Tarifas de tu tabla
+    const tarifas = {
+        "AMBATO": {aco:20, pri:60}, "CAYAMBE": {aco:20, pri:45}, "CUENCA": {aco:50, pri:180},
+        "ESMERALDAS": {aco:35, pri:120}, "GUAYAQUIL": {aco:45, pri:160}, "IBARRA": {aco:20, pri:60},
+        "LATACUNGA": {aco:15, pri:50}, "LOJA": {aco:50, pri:170}, "MANTA": {aco:40, pri:170},
+        "MINDO": {aco:30, pri:60}, "OTAVALO": {aco:20, pri:50}, "PEDRO VICENTE": {aco:30, pri:60},
+        "PUERTO QUITO": {aco:35, pri:65}, "QUININDE": {aco:35, pri:70}, "SANTO DOMINGO": {aco:20, pri:60}
+    };
+
+    // 2. Flota de conductores (Los que querías que aparezcan)
+    const flota = [
+        { chofer: "KEVIN CHAVEZ", placa: "PFS-3451", vehiculo: "POER GRIS" },
+        { chofer: "BYRON PRECIADO", placa: "AFH-610", vehiculo: "PEUGEOT ROJO" },
+        { chofer: "BYRON PRECIADO", placa: "PFS-4024", vehiculo: "CHEVROLET GRIS" },
+        { chofer: "CARLOS CADENA", placa: "PDZ-1476", vehiculo: "KIA SOLUTO ROJO" }
+    ];
+
+    function actualizarPrecio() {
+        const r = document.getElementById('ruta').value;
+        const t = document.getElementById('tipo').value;
+        if(r) {
+            document.getElementById('precioDisplay').innerText = "Total: $" + tarifas[r][t] + ".00";
+        }
+    }
+
+    function procesarSolicitud() {
+        const nom = document.getElementById('nombre').value;
+        const rut = document.getElementById('ruta').value;
+        const fec = document.getElementById('fecha').value;
+        const hor = document.getElementById('hora').value;
+        const arc = document.getElementById('pago').files[0];
+
+        if(!nom || !rut || !fec || !hor || !arc) {
+            alert("Diana, por favor completa todos los datos y sube el comprobante.");
+            return;
+        }
+
+        const lector = new FileReader();
+        lector.readAsDataURL(arc);
+        lector.onload = function() {
+            // Seleccionar conductor al azar
+            const v = flota[Math.floor(Math.random() * flota.length)];
+            
+            // Enviar correo (service_pl6jljh)
+            emailjs.send("service_pl6jljh", "TU_TEMPLATE_ID", {
+                from_name: nom,
+                ruta: rut,
+                fecha_hora: fec + " " + hor,
+                comprobante: lector.result 
+            }).then(() => {
+                alert("¡Solicitud enviada! Aquí tienes tu ticket.");
+                
+                // RELLENAR EL TICKET
+                document.getElementById('t-nom').innerText = nom;
+                document.getElementById('t-rut').innerText = "QUITO - " + rut;
+                document.getElementById('t-fec').innerText = fec + " a las " + hor;
+                document.getElementById('t-con').innerText = v.chofer;
+                document.getElementById('t-veh').innerText = v.vehiculo;
+                document.getElementById('t-pla').innerText = v.placa;
+                
+                // MOSTRAR EL TICKET
+                document.getElementById('ticket').style.display = 'block';
+            });
+        };
+    }
+</script>
+</body>
+</html>
